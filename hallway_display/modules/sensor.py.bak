@@ -59,8 +59,7 @@ class BH1750Sensor:
                     self.address = addr
                     device_found = True
                     logger.info(f"BH1750 light sensor found at address 0x{addr:02X}")
-                    break
-                except Exception as e:
+                    break                except Exception as e:
                     logger.debug(f"BH1750 not found at address 0x{addr:02X}: {e}")
             
             if not device_found:

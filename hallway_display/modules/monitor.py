@@ -178,7 +178,8 @@ class MonitorController:
         else:
             logger.error(f"Failed to set brightness to {brightness}%")
             return False
-      def get_power_state(self):
+    
+    def get_power_state(self):
         """Get the current monitor power state.
         
         Returns:
@@ -425,7 +426,8 @@ class MonitorController:
             return state if state is not None else False
         
         return not self.monitor_is_off
-          def _try_alternative_power_control(self, state):
+    
+    def _try_alternative_power_control(self, state):
         """Try alternative methods to control monitor power when DDC/CI fails.
         
         Args:
