@@ -154,7 +154,7 @@ class MonitorController:
             return True
         
         logger.debug(f"Setting brightness to {brightness}%")
-          if self.run_ddcutil(["setvcp", settings.VCP_BRIGHTNESS, str(brightness)]):
+        if self.run_ddcutil(["setvcp", settings.VCP_BRIGHTNESS, str(brightness)]):
             self.last_brightness_set = brightness
             return True
         else:
@@ -186,31 +186,13 @@ class MonitorController:
             if result.returncode != 0:
                 logger.warning(f"Failed to get monitor power state: {result.stderr.strip()}")
                 return None
-            
-            # Parse the output
+              # Parse the output
             output = result.stdout.strip()
             
             # Handle different output formats
             if "DPMS: Standby" in output:
                 self.monitor_is_off = True
                 return "OFF"
-            elif "DPM: On" in output:
-                self.monitor_is_off = False
-                return "ON"
-            elif "current value" in output:
-                state_part = output.split("current value =")[1].split(",")[0].strip()
-                power_state = state_part.split("x")[1].strip() if "x" in state_part else state_part
-                
-                is_on = power_state == settings.POWER_STATE_ON
-                self.monitor_is_off = not is_on
-                return "ON" if is_on else "OFF"
-            else:
-                logger.warning(f"Unexpected output format from ddcutil: {output}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error getting monitor power state: {e}")
-            return None
             elif "DPM: On" in output:
                 self.monitor_is_off = False
                 return "ON"
