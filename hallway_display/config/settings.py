@@ -19,7 +19,7 @@ PIR_GND_PIN = 5  # GPIO pin for GND
 PIR_ENABLE_PIN = 9  # GPIO pin for enabling the sensor (if used)
 
 # Monitor Control
-MONITOR_I2C_BUS = 20  # I2C bus for ddcutil (from previous setup)
+MONITOR_I2C_BUS = 1  # I2C bus for ddcutil (from previous setup)
 DDCUTIL_COMMAND = "sudo"  # Use 'sudo' if needed, or empty string if not
 VCP_BRIGHTNESS = "10"  # VCP code for Brightness
 VCP_POWER = "D6"  # VCP code for Power State

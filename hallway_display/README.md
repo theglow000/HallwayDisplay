@@ -157,6 +157,87 @@ If you prefer to edit files directly:
 - **Brightness Levels**: Modify `MIN_BRIGHTNESS`, `MAX_BRIGHTNESS`, and `NIGHT_BRIGHTNESS` settings.
 - **URLs**: Update `DAKBOARD_URL` and `HOME_ASSISTANT_URL` settings.
 
+## GitHub Integration
+
+Using GitHub for version control makes it easy to develop on one machine and deploy to your Raspberry Pi.
+
+### Initial Setup
+
+1. **Create a GitHub repository**:
+   - Go to [GitHub](https://github.com) and create a new repository
+   - Name it "HallwayDisplay" and choose visibility (public/private)
+
+2. **Push your local code to GitHub** (from development machine):
+   ```bash
+   cd c:\Users\thegl\Desktop\HallwayDisplay
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git branch -M main
+   git remote add origin https://github.com/yourusername/HallwayDisplay.git
+   git push -u origin main
+   ```
+
+### Deploying to Raspberry Pi
+
+1. **First-time setup**:
+   ```bash
+   # Install Git if needed
+   sudo apt update
+   sudo apt install git
+   
+   # Clone your repository
+   cd /home/theglow000
+   git clone https://github.com/yourusername/HallwayDisplay.git
+   
+   # Set proper permissions
+   chmod +x /home/theglow000/HallwayDisplay/hallway_display/start.sh
+   chmod +x /home/theglow000/HallwayDisplay/hallway_display/main.py
+   ```
+
+2. **Updating existing installation**:
+   ```bash
+   # Pull latest changes
+   cd /home/theglow000/HallwayDisplay
+   git pull
+   
+   # Ensure scripts are executable
+   chmod +x hallway_display/start.sh hallway_display/main.py
+   
+   # Restart the service if running
+   sudo systemctl restart hallway-display.service
+   ```
+
+### Development Workflow
+
+1. **Make changes** on your development machine
+2. **Commit and push** to GitHub:
+   ```bash
+   git add .
+   git commit -m "Description of changes"
+   git push
+   ```
+3. **Pull changes** on your Raspberry Pi:
+   ```bash
+   cd /home/theglow000/HallwayDisplay
+   git pull
+   ```
+
+### Troubleshooting Git Issues
+
+- **Local changes conflict**: If you've made changes directly on the Pi that conflict:
+  ```bash
+  # Discard local changes and force-sync with GitHub
+  git fetch
+  git reset --hard origin/main
+  ```
+
+- **Permission issues after update**: Reset permissions if needed:
+  ```bash
+  chmod -R +x /home/theglow000/HallwayDisplay/hallway_display/*.sh
+  chmod +x /home/theglow000/HallwayDisplay/hallway_display/main.py
+  ```
+
 ## Troubleshooting
 
 ### Logs
