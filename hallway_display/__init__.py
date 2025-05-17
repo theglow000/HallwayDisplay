@@ -1,0 +1,3 @@
+"""
+Hallway Display system package.
+"""
