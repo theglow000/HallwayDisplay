@@ -24,9 +24,9 @@ BH1750_SCL_PIN = 11  # GPIO pin for SCL
 BH1750_ADDR_PIN = 14  # GPIO pin for ADDR (if used)
 
 # PIR Motion Sensor
-PIR_VCC_PIN = 1  # GPIO pin for VCC
-PIR_OUT_PIN = 3  # GPIO pin for OUT (signal)
-PIR_GND_PIN = 5  # GPIO pin for GND
+PIR_VCC_PIN = 2  # GPIO pin for VCC (physical pin 2)
+PIR_OUT_PIN = 17  # GPIO pin for OUT (signal) (physical pin 11)
+PIR_GND_PIN = 14  # GPIO pin for GND (physical pin 14)
 PIR_ENABLE_PIN = 9  # GPIO pin for enabling the sensor (if used)
 
 # Monitor Control

@@ -31,16 +31,41 @@ class BH1750Sensor:
     """
     
     # BH1750 constants
-    DEVICE_ADDRESS = 0x23  # Default I2C address of the BH1750
+    POSSIBLE_ADDRESSES = [0x23, 0x5C]  # Possible I2C addresses of the BH1750
     ONE_TIME_HIGH_RES_MODE = 0x20  # 1 lux resolution
     
     def __init__(self):
         """Initialize the BH1750 light sensor."""
         self.bus = None
+        self.address = None
+        
         try:
+            # Enable pull-ups on I2C pins to improve reliability
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(2, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # SDA
+            GPIO.setup(3, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # SCL
+            
             import smbus
             # Initialize I2C bus
             self.bus = smbus.SMBus(1)  # Raspberry Pi I2C bus
+            
+            # Try each possible address
+            device_found = False
+            for addr in self.POSSIBLE_ADDRESSES:
+                try:
+                    self.bus.write_byte(addr, self.ONE_TIME_HIGH_RES_MODE)
+                    time.sleep(0.2)
+                    self.bus.read_byte(addr)
+                    self.address = addr
+                    device_found = True
+                    logger.info(f"BH1750 light sensor found at address 0x{addr:02X}")
+                    break
+                except Exception as e:
+                    logger.debug(f"BH1750 not found at address 0x{addr:02X}: {e}")
+            
+            if not device_found:
+                raise SensorError("BH1750 sensor not found at any known address")
+                
             logger.info("BH1750 light sensor initialized")
         except ImportError:
             logger.error("smbus library not found. Install with: pip install smbus")
@@ -60,11 +85,11 @@ class BH1750Sensor:
         """
         try:
             # Send measurement command
-            self.bus.write_byte(self.DEVICE_ADDRESS, self.ONE_TIME_HIGH_RES_MODE)
+            self.bus.write_byte(self.address, self.ONE_TIME_HIGH_RES_MODE)
             # Wait for measurement to be taken
-            time.sleep(0.2)
+            time.sleep(0.3)  # Increased from 0.2 to 0.3 for more reliable readings
             # Read data from sensor
-            data = self.bus.read_i2c_block_data(self.DEVICE_ADDRESS, 0, 2)
+            data = self.bus.read_i2c_block_data(self.address, 0, 2)
             # Convert the data to lux
             light_level = (data[0] << 8 | data[1]) / 1.2
             logger.debug(f"Light level: {light_level:.2f} lux")
