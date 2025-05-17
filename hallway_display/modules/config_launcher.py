@@ -11,7 +11,11 @@ import threading
 import signal
 import sys
 import tkinter as tk
-from ..utils.logger import setup_logger
+
+# Add the project root to the path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.logger import setup_logger
 
 # Setup logger
 logger = setup_logger('config_launcher')

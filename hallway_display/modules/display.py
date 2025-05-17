@@ -11,8 +11,13 @@ import threading
 import os
 import signal
 import psutil
-from ..utils.logger import setup_logger
-from ..config import settings
+import sys
+
+# Add the project root to the path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.logger import setup_logger
+from config import settings
 
 # Setup logger
 logger = setup_logger('display')

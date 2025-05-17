@@ -8,8 +8,14 @@ should be on/off based on the configured rules.
 import time
 import datetime
 import threading
-from ..utils.logger import setup_logger
-from ..config import settings
+import sys
+import os
+
+# Add the project root to the path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.logger import setup_logger
+from config import settings
 
 # Setup logger
 logger = setup_logger('scheduler')
