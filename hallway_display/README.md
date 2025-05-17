@@ -165,7 +165,7 @@ Using GitHub for version control makes it easy to develop on one machine and dep
 
 1. **Create a GitHub repository**:
    - Go to [GitHub](https://github.com) and create a new repository
-   - Name it "HallwayDisplay" and choose visibility (public/private)
+   - Name it "HallwayDisplay" and set visibility to "Public"
 
 2. **Push your local code to GitHub** (from development machine):
    ```bash
@@ -174,7 +174,7 @@ Using GitHub for version control makes it easy to develop on one machine and dep
    git add .
    git commit -m "Initial commit"
    git branch -M main
-   git remote add origin https://github.com/yourusername/HallwayDisplay.git
+   git remote add origin https://github.com/theglow000/HallwayDisplay.git
    git push -u origin main
    ```
 
@@ -188,7 +188,7 @@ Using GitHub for version control makes it easy to develop on one machine and dep
    
    # Clone your repository
    cd /home/theglow000
-   git clone https://github.com/yourusername/HallwayDisplay.git
+   git clone https://github.com/theglow000/HallwayDisplay.git
    
    # Set proper permissions
    chmod +x /home/theglow000/HallwayDisplay/hallway_display/start.sh

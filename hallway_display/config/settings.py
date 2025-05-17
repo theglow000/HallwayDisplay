@@ -1,10 +1,21 @@
 """
 Configuration settings for the Hallway Display system.
 """
+import os
+from pathlib import Path
 
-# Display URLs
-DAKBOARD_URL = "https://dakboard.com/loop/uuid/643a1d4e-104902-dd3d-c7c5c2007b3a"  # Replace with your actual DakBoard URL
-HOME_ASSISTANT_URL = "http://192.168.80.4:8123/lovelace-test/default_view"  # Replace with your actual Home Assistant URL
+# Load sensitive settings from .env file if it exists
+env_file = Path(__file__).parent / '.env'
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                key, value = line.strip().split('=', 1)
+                os.environ[key] = value
+
+# Display URLs - Use environment variables or defaults
+DAKBOARD_URL = os.environ.get("DAKBOARD_URL", "https://dakboard.com/app/screenurl")  # Default is generic
+HOME_ASSISTANT_URL = os.environ.get("HOME_ASSISTANT_URL", "http://homeassistant.local:8123")  # Default is discoverable name
 
 # GPIO Pin Configuration
 # BH1750 Light Sensor
