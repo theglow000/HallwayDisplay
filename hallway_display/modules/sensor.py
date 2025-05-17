@@ -73,30 +73,47 @@ class BH1750Sensor:
         except Exception as e:
             logger.error(f"Failed to initialize BH1750 sensor: {e}")
             raise SensorError(f"Failed to initialize BH1750 sensor: {e}")
-    
-    def read_light(self):
+      def read_light(self):
         """Read light level from the BH1750 sensor.
         
         Returns:
-            float: Light level in lux.
+            float: Light level in lux, or None if reading failed.
         
         Raises:
-            SensorError: If reading from the sensor fails.
+            SensorError: If reading from the sensor fails repeatedly.
         """
-        try:
-            # Send measurement command
-            self.bus.write_byte(self.address, self.ONE_TIME_HIGH_RES_MODE)
-            # Wait for measurement to be taken
-            time.sleep(0.3)  # Increased from 0.2 to 0.3 for more reliable readings
-            # Read data from sensor
-            data = self.bus.read_i2c_block_data(self.address, 0, 2)
-            # Convert the data to lux
-            light_level = (data[0] << 8 | data[1]) / 1.2
-            logger.debug(f"Light level: {light_level:.2f} lux")
-            return light_level
-        except Exception as e:
-            logger.error(f"Failed to read from BH1750 sensor: {e}")
-            raise SensorError(f"Failed to read from BH1750 sensor: {e}")
+        # Retry pattern with timeout
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Send measurement command
+                self.bus.write_byte(self.address, self.ONE_TIME_HIGH_RES_MODE)
+                
+                # Wait for measurement to be taken
+                time.sleep(0.3)  # Increased from 0.2 to 0.3 for more reliable readings
+                
+                # Read data from sensor
+                data = self.bus.read_i2c_block_data(self.address, 0, 2)
+                
+                # Convert the data to lux
+                light_level = (data[0] << 8 | data[1]) / 1.2
+                logger.debug(f"Light level: {light_level:.2f} lux")
+                return light_level
+                
+            except IOError as e:
+                # I2C communication might fail temporarily due to bus contention
+                logger.warning(f"I2C communication error (attempt {attempt+1}/{max_retries}): {e}")
+                time.sleep(0.5)  # Wait a bit longer before retry
+                
+            except Exception as e:
+                logger.error(f"Failed to read from BH1750 sensor: {e}")
+                # Return a default value instead of raising an exception
+                return None
+                
+        # If we've exhausted retries, return None instead of raising an exception
+        # This allows the system to continue functioning without light sensor data
+        logger.error("Failed to read from BH1750 sensor after multiple attempts")
+        return None
 
 
 class PIRMotionSensor:
@@ -113,25 +130,60 @@ class PIRMotionSensor:
         """
         self.callback = callback
         self.last_motion_time = 0
+        self.polling_thread = None
+        self.keep_polling = False
+        
         # Initialize GPIO
         try:
             GPIO.setmode(GPIO.BCM)
-            # Setup the PIR sensor pin as input
-            GPIO.setup(settings.PIR_OUT_PIN, GPIO.IN)
+            # Setup the PIR sensor pin as input with pull-down resistor
+            # This ensures stable readings even with longer cable runs
+            GPIO.setup(settings.PIR_OUT_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             logger.info("PIR motion sensor initialized")
         except Exception as e:
             logger.error(f"Failed to initialize PIR sensor: {e}")
             raise SensorError(f"Failed to initialize PIR sensor: {e}")
     
     def start_monitoring(self):
-        """Start monitoring for motion events."""
+        """Start monitoring for motion events.
+        
+        Uses either edge detection (preferred) or polling as a fallback.
+        """
         try:
-            # Add event detection
-            GPIO.add_event_detect(settings.PIR_OUT_PIN, GPIO.RISING, callback=self._motion_detected, bouncetime=300)
-            logger.info("PIR motion monitoring started")
+            # Try to use edge detection first (most efficient)
+            GPIO.add_event_detect(settings.PIR_OUT_PIN, GPIO.RISING, 
+                                 callback=self._motion_detected, bouncetime=300)
+            logger.info("PIR motion monitoring started using event detection")
         except Exception as e:
-            logger.error(f"Failed to start PIR monitoring: {e}")
-            raise SensorError(f"Failed to start PIR monitoring: {e}")
+            # Fall back to polling if edge detection fails (often due to permissions)
+            logger.warning(f"Edge detection failed: {e}. Falling back to polling.")
+            self._start_polling()
+    
+    def _start_polling(self):
+        """Start polling for PIR state changes as a fallback method."""
+        if self.polling_thread is not None and self.polling_thread.is_alive():
+            return  # Already polling
+            
+        self.keep_polling = True
+        self.polling_thread = threading.Thread(target=self._polling_loop, daemon=True)
+        self.polling_thread.start()
+        logger.info("PIR motion monitoring started using polling")
+        
+    def _polling_loop(self):
+        """Background thread that polls the PIR sensor state."""
+        last_state = GPIO.input(settings.PIR_OUT_PIN)
+        
+        while self.keep_polling:
+            try:
+                current_state = GPIO.input(settings.PIR_OUT_PIN)
+                # Detect rising edge (motion detection)
+                if current_state == 1 and last_state == 0:
+                    self._motion_detected(settings.PIR_OUT_PIN)
+                last_state = current_state
+                time.sleep(0.1)  # 100ms polling interval
+            except Exception as e:
+                logger.error(f"Error in PIR polling loop: {e}")
+                time.sleep(1)  # Longer delay on error
     
     def stop_monitoring(self):
         """Stop monitoring for motion events."""

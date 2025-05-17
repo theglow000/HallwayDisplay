@@ -102,12 +102,13 @@ class MonitorController:
         except Exception as e:
             logger.error(f"Error running ddcutil: {e}")
             return False
-    
-    def set_power(self, state):
+            
+    def set_power(self, state, retry_count=2):
         """Set the monitor power state.
         
         Args:
             state: True to turn on, False to turn off.
+            retry_count: Number of times to retry if the command fails.
             
         Returns:
             bool: True if successful, False otherwise.
@@ -124,17 +125,34 @@ class MonitorController:
         
         logger.info(f"Setting monitor power state to {state_desc}")
         
-        # Use --noverify for power commands
-        if self.run_ddcutil(["setvcp", settings.VCP_POWER, state_code], verify=False):
+        # Try primary method: DDC/CI using ddcutil
+        for attempt in range(retry_count + 1):
+            if attempt > 0:
+                logger.info(f"Retrying monitor power {state_desc} (attempt {attempt}/{retry_count})")
+                time.sleep(1)  # Wait before retry
+                
+            # Use --noverify for power commands
+            if self.run_ddcutil(["setvcp", settings.VCP_POWER, state_code], verify=False):
+                self.monitor_is_off = not state
+                self.last_power_state_set = state_code
+                # Reset brightness tracking if turning off
+                if not state:
+                    self.last_brightness_set = -1
+                return True
+                
+        # If DDC/CI failed, try alternative methods
+        logger.warning(f"DDC/CI failed to set power {state_desc}, trying alternatives")
+        
+        if self._try_alternative_power_control(state):
             self.monitor_is_off = not state
             self.last_power_state_set = state_code
             # Reset brightness tracking if turning off
             if not state:
                 self.last_brightness_set = -1
             return True
-        else:
-            logger.error(f"Failed to set monitor power state to {state_desc}")
-            return False
+        
+        logger.error(f"All methods failed to set monitor power to {state_desc}")
+        return False
     
     def set_brightness(self, value):
         """Set the monitor brightness.
@@ -160,9 +178,42 @@ class MonitorController:
         else:
             logger.error(f"Failed to set brightness to {brightness}%")
             return False
-    
-    def get_power_state(self):
-        """Get the current monitor power state."""
+      def get_power_state(self):
+        """Get the current monitor power state.
+        
+        Returns:
+            str: "ON" if the monitor is on, "OFF" if off.
+            None: If the power state cannot be determined.
+        """
+        # Try DDC/CI method first
+        ddc_state = self._get_power_state_ddcutil()
+        if ddc_state is not None:
+            return ddc_state
+            
+        # Fall back to alternative methods if DDC/CI fails
+        logger.warning("DDC/CI failed to get power state, trying alternatives")
+        
+        # Try xset method
+        xset_state = self._get_power_state_xset()
+        if xset_state is not None:
+            return xset_state
+            
+        # Try tvservice method
+        tvservice_state = self._get_power_state_tvservice()
+        if tvservice_state is not None:
+            return tvservice_state
+            
+        # If all methods fail, use the last known state
+        logger.warning("All methods failed to get power state, using last known state")
+        return "OFF" if self.monitor_is_off else "ON" if self.monitor_is_off is not None else None
+        
+    def _get_power_state_ddcutil(self):
+        """Get the current monitor power state using ddcutil.
+        
+        Returns:
+            str: "ON" if the monitor is on, "OFF" if off.
+            None: If the power state cannot be determined.
+        """
         try:
             command = []
             if settings.DDCUTIL_COMMAND:
@@ -186,7 +237,8 @@ class MonitorController:
             if result.returncode != 0:
                 logger.warning(f"Failed to get monitor power state: {result.stderr.strip()}")
                 return None
-              # Parse the output
+                
+            # Parse the output
             output = result.stdout.strip()
             
             # Handle different output formats
@@ -207,8 +259,93 @@ class MonitorController:
                 logger.warning(f"Unexpected output format from ddcutil: {output}")
                 return None
                 
+        except subprocess.TimeoutExpired:
+            logger.warning("ddcutil command timed out while getting power state")
+            return None
+        except FileNotFoundError as exc:
+            logger.error("ddcutil command not found. Is it installed?")
+            return None
         except Exception as e:
             logger.error(f"Error getting monitor power state: {e}")
+            return None
+            
+    def _get_power_state_xset(self):
+        """Get the current monitor power state using xset.
+        
+        Returns:
+            str: "ON" if the monitor is on, "OFF" if off.
+            None: If the power state cannot be determined.
+        """
+        try:
+            result = subprocess.run(
+                ["xset", "q"],
+                env={"DISPLAY": ":0", "XAUTHORITY": os.environ.get("XAUTHORITY", "/home/theglow000/.Xauthority")},
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=3
+            )
+            
+            if result.returncode != 0:
+                return None
+                
+            output = result.stdout.strip()
+            
+            # Check DPMS status
+            if "Monitor is On" in output:
+                self.monitor_is_off = False
+                return "ON"
+            elif "Monitor is in Standby" in output or "Monitor is in Suspend" in output or "Monitor is Off" in output:
+                self.monitor_is_off = True
+                return "OFF"
+                
+            return None
+            
+        except subprocess.TimeoutExpired:
+            return None
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            logger.debug(f"xset power state check failed: {e}")
+            return None
+            
+    def _get_power_state_tvservice(self):
+        """Get the current monitor power state using tvservice.
+        
+        Returns:
+            str: "ON" if the monitor is on, "OFF" if off.
+            None: If the power state cannot be determined.
+        """
+        try:
+            result = subprocess.run(
+                ["tvservice", "-s"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=3
+            )
+            
+            if result.returncode != 0:
+                return None
+                
+            output = result.stdout.strip()
+            
+            # Check tvservice status
+            if "state 0x" in output and ("0xa" in output or "0x12" in output):
+                self.monitor_is_off = False
+                return "ON"
+            elif "state 0x" in output and "0x40" in output:
+                self.monitor_is_off = True
+                return "OFF"
+                
+            return None
+            
+        except subprocess.TimeoutExpired:
+            return None
+        except FileNotFoundError:
+            return None
+        except Exception as e:
+            logger.debug(f"tvservice power state check failed: {e}")
             return None
     
     def get_brightness(self):
@@ -288,3 +425,153 @@ class MonitorController:
             return state if state is not None else False
         
         return not self.monitor_is_off
+          def _try_alternative_power_control(self, state):
+        """Try alternative methods to control monitor power when DDC/CI fails.
+        
+        Args:
+            state: True to turn on, False to turn off.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        # Method 1: CEC-client for HDMI-CEC compatible displays
+        if self._try_cec_control(state):
+            logger.info("Successfully set power using CEC-client")
+            return True
+            
+        # Method 2: VESA DPMS for local X11 displays
+        if self._try_xset_dpms(state):
+            logger.info("Successfully set power using xset DPMS")
+            return True
+            
+        # Method 3: tvservice for Raspberry Pi's own HDMI control
+        if self._try_tvservice(state):
+            logger.info("Successfully set power using tvservice")
+            return True
+            
+        return False
+        
+    def _try_cec_control(self, state):
+        """Try using CEC-client to control monitor power.
+        
+        Args:
+            state: True to turn on, False to turn off.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            # Check if cec-client is available
+            result = subprocess.run(
+                ["which", "cec-client"], 
+                capture_output=True, 
+                text=True, 
+                check=False
+            )
+            
+            if result.returncode != 0:
+                logger.debug("cec-client not found, skipping CEC control")
+                return False
+                
+            # CEC command: 0x0 for ON, 0x36 for Standby
+            cec_command = "tx 10:04" if state else "tx 10:36"
+            
+            # Run cec-client
+            logger.debug(f"Trying CEC command: {cec_command}")
+            result = subprocess.run(
+                ["echo", cec_command, "|", "cec-client", "-s", "-d", "1"],
+                shell=True,  # Need shell to use pipe
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5
+            )
+            
+            return result.returncode == 0
+            
+        except Exception as e:
+            logger.debug(f"CEC control failed: {e}")
+            return False
+            
+    def _try_xset_dpms(self, state):
+        """Try using xset to control DPMS power state.
+        
+        Args:
+            state: True to turn on, False to turn off.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            # Check if xset is available
+            result = subprocess.run(
+                ["which", "xset"], 
+                capture_output=True, 
+                text=True, 
+                check=False
+            )
+            
+            if result.returncode != 0:
+                logger.debug("xset not found, skipping DPMS control")
+                return False
+                
+            # DPMS command: force on or off
+            dpms_command = ["xset", "dpms", "force", "on" if state else "off"]
+            
+            # Run xset
+            logger.debug(f"Trying DPMS command: {' '.join(dpms_command)}")
+            result = subprocess.run(
+                dpms_command,
+                env={"DISPLAY": ":0", "XAUTHORITY": os.environ.get("XAUTHORITY", "/home/theglow000/.Xauthority")},
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5
+            )
+            
+            return result.returncode == 0
+            
+        except Exception as e:
+            logger.debug(f"DPMS control failed: {e}")
+            return False
+            
+    def _try_tvservice(self, state):
+        """Try using tvservice (Raspberry Pi specific) to control HDMI power.
+        
+        Args:
+            state: True to turn on, False to turn off.
+            
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            # Check if tvservice is available
+            result = subprocess.run(
+                ["which", "tvservice"], 
+                capture_output=True, 
+                text=True, 
+                check=False
+            )
+            
+            if result.returncode != 0:
+                logger.debug("tvservice not found, skipping tvservice control")
+                return False
+                
+            # tvservice command: --preferred for ON, --off for OFF
+            tvservice_command = ["tvservice", "--preferred" if state else "--off"]
+            
+            # Run tvservice
+            logger.debug(f"Trying tvservice command: {' '.join(tvservice_command)}")
+            result = subprocess.run(
+                tvservice_command,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5
+            )
+            
+            return result.returncode == 0
+            
+        except Exception as e:
+            logger.debug(f"tvservice control failed: {e}")
+            return False

@@ -3,7 +3,22 @@
 
 # Set display environment variables
 export DISPLAY=:0
-export XAUTHORITY=/home/theglow000/.Xauthority
+
+# Handle Xauthority for both root and non-root users
+if [ "$EUID" -eq 0 ]; then
+  # If running as root, determine the user who started the X session
+  X_USER=$(who | grep " *(:0)" | head -n 1 | cut -d ' ' -f 1)
+  if [ -n "$X_USER" ]; then
+    export XAUTHORITY="/home/$X_USER/.Xauthority"
+    # Allow root to access the X server
+    xhost +si:localuser:root || true
+  else
+    # Fallback if we can't determine the X user
+    export XAUTHORITY=/home/theglow000/.Xauthority
+  fi
+else
+  export XAUTHORITY=/home/theglow000/.Xauthority
+fi
 
 # Navigate to the script directory
 cd "$(dirname "$0")"

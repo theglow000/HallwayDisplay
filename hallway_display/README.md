@@ -243,10 +243,100 @@ Using GitHub for version control makes it easy to develop on one machine and dep
 ### Logs
 Logs are stored in the `logs/` directory with a filename based on the current date.
 
+### Diagnostic Tools
+The system includes diagnostic tools to help identify and resolve common issues:
+
+1. **Display Environment Diagnostics**:
+   ```bash
+   chmod +x display_diagnostics.sh
+   ./display_diagnostics.sh
+   ```
+   This script checks for common display, X server, and permission issues and provides guidance on how to fix them.
+
+2. **Enhanced Startup Script**:
+   If you're experiencing issues with the regular start script, try the enhanced version:
+   ```bash
+   chmod +x start_enhanced.sh
+   ./start_enhanced.sh
+   ```
+   This script includes improved error handling and permission management.
+
 ### Common Issues
-- **Touch not working**: Verify the touch device path in `_find_touch_device()` in `main.py`.
-- **Monitor not turning on/off**: Check ddcutil permissions and monitor I2C bus configuration.
-- **Sensors not responding**: Verify GPIO pin configurations in `config/settings.py`.
+
+#### X Server Display Issues
+- **Error**: "Can't open display: (null)" or "No display name and no DISPLAY environment variable"
+  - **Solution 1**: Make sure you're running from a desktop session (not SSH without X forwarding)
+  - **Solution 2**: Try running with proper display environment variables:
+    ```bash
+    DISPLAY=:0 XAUTHORITY=/home/theglow000/.Xauthority ./start.sh
+    ```
+  - **Solution 3**: For root/sudo access to X server:
+    ```bash
+    # First, from the regular user session:
+    xhost +local:root
+    # Then run with sudo:
+    sudo -E ./start.sh
+    ```
+
+#### GPIO and Sensor Issues
+- **Error**: "Failed to add edge detection" or other GPIO permission issues
+  - **Solution 1**: Add your user to the required groups:
+    ```bash
+    sudo usermod -a -G gpio,i2c,video $USER
+    # Log out and back in for changes to take effect
+    ```
+  - **Solution 2**: Use the polling fallback (implemented in the latest code)
+  - **Solution 3**: Run with sudo:
+    ```bash
+    sudo -E ./start_enhanced.sh
+    ```
+
+#### Monitor Control Issues
+- **Error**: "Monitor not responding to power commands" or "Monitor brightness control not working"
+  - **Solution 1**: Verify I2C bus and ddcutil accessibility:
+    ```bash
+    # Check if monitor is detectable
+    ddcutil detect
+    # Check specific I2C bus
+    ddcutil --bus=1 detect
+    ```
+  - **Solution 2**: Try different display control methods:
+    ```bash
+    # DPMS method
+    xset dpms force on  # Turn on
+    xset dpms force off  # Turn off
+    
+    # For Raspberry Pi specific
+    tvservice --preferred  # Turn on
+    tvservice --off  # Turn off
+    ```
+  - **Solution 3**: Verify monitor supports DDC/CI (many monitors have this disabled by default in their OSD menu)
+
+#### Light Sensor Issues
+- **Error**: "Failed to read from BH1750 sensor" or timeouts
+  - **Solution 1**: Check I2C connections and pull-up resistors:
+    ```bash
+    # Scan I2C bus for devices
+    i2cdetect -y 1
+    ```
+  - **Solution 2**: Try both common BH1750 addresses (0x23 and 0x5C) - implemented in latest code
+  - **Solution 3**: Verify your user has access to I2C devices:
+    ```bash
+    sudo usermod -a -G i2c $USER
+    # Log out and back in for changes to take effect
+    ```
+
+#### Getting Updates from GitHub
+- **Error**: "Authentication failed" when pulling from GitHub
+  - **Solution 1**: Use HTTPS URL with a personal access token:
+    ```bash
+    git remote set-url origin https://your-username:your-token@github.com/theglow000/HallwayDisplay.git
+    ```
+  - **Solution 2**: For public repositories, use the public HTTPS URL:
+    ```bash
+    git remote set-url origin https://github.com/theglow000/HallwayDisplay.git
+    git pull
+    ```
 
 ## License
 
